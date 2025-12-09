@@ -1,0 +1,15 @@
+[build]
+# Instruction set of Cortex-M4F (used in NUCLEO-STM32L476)
+target = "thumbv7em-none-eabihf"
+
+rustflags = [
+  # use the Tlink.x scrip from the cortex-m-rt crate
+  "-C", "link-arg=-Tlink.x",
+]
+
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+# uncomment ONE of these three option to make `cargo run` start a GDB session
+# which option to pick depends on your system
+# runner = "arm-eabi-gdb -x openocd.gdb"
+runner = "gdb-multiarch -x openocd.gdb"
+# runner = "gdb -x openocd.gdb"

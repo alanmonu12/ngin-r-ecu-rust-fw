@@ -1,0 +1,8 @@
+[package]
+name = "engine_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Traemos los traits para implementarlos en las estructuras lógicas
+ecu_traits = { path = "../ecu_traits" }

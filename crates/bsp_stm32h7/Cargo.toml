@@ -1,0 +1,28 @@
+[package]
+name = "bsp_stm32h7"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# 1. El contrato (Traits)
+ecu_traits = { path = "../ecu_traits" }
+
+# 2. Soporte básico ARM
+cortex-m = "0.7.7"
+
+# 3. SOLUCIÓN ERROR 'nb': Necesitamos la librería non-blocking explícita
+nb = "1.1.0"
+
+# 4. Abstracciones de Hardware
+embedded-hal = "1.0.0"
+
+# 5. SOLUCIÓN ERROR 'hal': El driver específico del chip
+[dependencies.stm32h7xx-hal]
+version = "0.16.0" # Usamos la misma versión que en firmware
+features = ["stm32h750v", "rt"]
+
+# Dependencias que SOLO se usan para tests y ejemplos dentro de este crate
+[dev-dependencies]
+panic-halt = "1.0.0"
+
+cortex-m-rt = "0.7.5"

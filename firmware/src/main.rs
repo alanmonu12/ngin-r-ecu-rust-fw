@@ -25,6 +25,7 @@ systick_monotonic!(Mono, 1000);
 mod app {
     use super::*;
 
+    // Recursos compartidos (Shared) y Locales (Local)
     #[shared]
     struct Shared {}
 
@@ -43,7 +44,7 @@ mod app {
         Mono::start(cx.core.SYST, 100_000_000); // default STM32F303 clock-rate is 36MHz
 
         rtt_init_print!();
-        rprintln!("init");
+        rprintln!("Ngin-R ecu inicializacion");
 
         let pwr = cx.device.PWR.constrain();
         let pwrcfg = pwr.freeze();
@@ -57,8 +58,10 @@ mod app {
         // Setup LED
         let gpioe = cx.device.GPIOE.split(ccdr.peripheral.GPIOE);
 
-        // Configure PE1 as output.
-        let led = gpioe.pe3.into_push_pull_output();
+         let mut led = gpioe
+            .pe3
+            .into_push_pull_output();
+        led.set_high();
 
         // Schedule the blinking task
         blink::spawn().ok();
@@ -77,7 +80,7 @@ mod app {
                 cx.local.led.set_low();
                 *cx.local.state = true;
             }
-            Mono::delay(500.millis()).await;
+            Mono::delay(1000.millis()).await;
         }
     }
 }
