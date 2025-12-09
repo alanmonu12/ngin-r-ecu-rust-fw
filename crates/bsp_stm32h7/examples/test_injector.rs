@@ -11,14 +11,12 @@ use bsp_stm32h7::hal::prelude::*;
 #[entry]
 fn main() -> ! {
     // 1. Inicialización de Hardware (Una sola línea)
-    // Esto prueba implícitamente que tu mapeo de pines y relojes es correcto.
+    // Esto prueba implícitamente que el mapeo de pines y relojes es correcto.
     let mut board = Board::init();
 
     // 2. Bucle de Prueba
     loop {
         // --- CILINDRO 1 ---
-        // Nota: open() y close() dependen de cómo nombraste los métodos en el Trait
-        // Si usaste turn_on/turn_off en el paso anterior, úsalos aquí.
         let _ = board.inyector_1.open();
         
         // Usamos el delay que vive dentro de la board

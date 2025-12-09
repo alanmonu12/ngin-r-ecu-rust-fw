@@ -5,6 +5,7 @@ pub use stm32h7xx_hal as hal;
 pub use ecu_traits;
 
 pub mod injector;
+pub mod ignition;
 pub mod pinout; // <--- Nuevo módulo
 
 use hal::prelude::*;
@@ -20,7 +21,15 @@ pub struct Board {
     // Usamos los tipos abstractos definidos en pinout
     pub inyector_1: pinout::Inj1Driver,
     pub inyector_2: pinout::Inj2Driver,
-    pub delay: Delay, // <--- NUEVO: La board incluye su propio reloj de espera
+    pub inyector_3: pinout::Inj3Driver,
+    pub inyector_4: pinout::Inj4Driver,
+
+    pub coil_1: pinout::Ign1Driver,
+    pub coil_2: pinout::Ign2Driver,
+    pub coil_3: pinout::Ign3Driver,
+    pub coil_4: pinout::Ign4Driver,
+
+    pub delay: Delay, // <--- La board incluye su propio reloj de espera
 }
 
 impl Board {
@@ -55,6 +64,14 @@ impl Board {
         Board {
             inyector_1: hardware.inj1,
             inyector_2: hardware.inj2,
+            inyector_3: hardware.inj3,
+            inyector_4: hardware.inj4,
+
+            coil_1:     hardware.ing1,
+            coil_2:     hardware.ing2,
+            coil_3:     hardware.ing3,
+            coil_4:     hardware.ing4,
+            
             delay: sys_delay, // <--- Lo guardamos
         }
     }
