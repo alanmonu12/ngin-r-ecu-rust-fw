@@ -26,3 +26,5 @@ features = ["stm32h750v", "rt"]
 panic-halt = "1.0.0"
 
 cortex-m-rt = "0.7.5"
+
+rtt-target = "0.6.2"

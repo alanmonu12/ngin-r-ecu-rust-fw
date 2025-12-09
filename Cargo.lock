@@ -33,6 +33,7 @@ dependencies = [
  "embedded-hal 0.2.7",
  "nb 1.1.0",
  "panic-halt",
+ "rtt-target",
  "stm32h7xx-hal",
 ]
 

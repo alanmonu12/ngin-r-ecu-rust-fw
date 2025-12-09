@@ -22,6 +22,16 @@ pub trait IgnitionCoil {
     /// Se apaga la corriente para generar la chispa
     /// Se pone el PIN en LOW
     fn coil_fire(&mut self) -> Result<(), Self::Error>;
+}
 
+/// Interface para sensores de poscion (HAL/VR despues de acondicionamiento)
+/// Se usan principalmente para CKP y CMP
+pub trait RotationSensor {
+    type Error;
 
+    /// Leer estado actual
+    fn get_state(&mut self) -> Result<bool, Self::Error>;
+
+    /// Limpiar bandera de la interrupcion pendiente de HW
+    fn clear_sensor_flag(&mut self);
 }
