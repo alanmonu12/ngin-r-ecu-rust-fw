@@ -33,6 +33,7 @@ pub struct Board {
     pub coil_4: pinout::Ign4Driver,
 
     pub ckp: pinout::CkpDriver, // <--- Público para el firmware
+    pub cmp: pinout::CmpDriver, // <--- Público para el firmware
 
     pub delay: Delay, // <--- La board incluye su propio reloj de espera
 }
@@ -50,8 +51,8 @@ impl Board {
         let rcc = dp.RCC.constrain();
         let ccdr = rcc.sys_ck(100.MHz()).freeze(pwrcfg, &dp.SYSCFG);
 
-        let mut syscfg = dp.SYSCFG;
-        let mut exti = dp.EXTI;
+        //let mut syscfg = dp.SYSCFG;
+        //let mut exti = dp.EXTI;
 
         // 3. Dividir los GPIOs (Split)
         let gpioe = dp.GPIOE.split(ccdr.peripheral.GPIOE);
@@ -89,6 +90,7 @@ impl Board {
             coil_4:     hardware.ing4,
 
             ckp: hardware.ckp,
+            cmp: hardware.cmp,
             
             delay: sys_delay, // <--- Lo guardamos
         }

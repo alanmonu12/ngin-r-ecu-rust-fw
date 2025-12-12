@@ -76,6 +76,7 @@ define_hardware_map!(
     inputs: {
         // Alias      : Puerto . Pin   as Tipo
         CkpPin        : gpioa  . pa4   as PA4,
+        CmpPin        : gpioa  . pa5   as PA5,
     }
 );
 
@@ -93,6 +94,7 @@ pub type Ign3Driver = Stm32h7Coil<Ign3Pin>;
 pub type Ign4Driver = Stm32h7Coil<Ign4Pin>;
 
 pub type CkpDriver = Stm32h7HallSensor<CkpPin>;
+pub type CmpDriver = Stm32h7HallSensor<CmpPin>;
 
 // Estructura que devuelve los pines ya convertidos en drivers
 pub struct ConfiguredHardware {
@@ -107,6 +109,7 @@ pub struct ConfiguredHardware {
     pub ing4: Ign4Driver,
 
     pub ckp: CkpDriver,
+    pub cmp: CmpDriver,
 }
 
 // --- 3. EL MAPEO (LA "CONEXIÓN") ---
@@ -122,7 +125,8 @@ pub fn map_hardware(ports: RawPorts) -> ConfiguredHardware {
         p_ign2,
         p_ign3,
         p_ign4),
-        (p_ckp,)
+        (p_ckp,
+        p_cmp,)
     ) = extract_pins(ports);
 
     // C) Creamos los drivers
@@ -138,5 +142,6 @@ pub fn map_hardware(ports: RawPorts) -> ConfiguredHardware {
         ing4: Stm32h7Coil::new(p_ign4),
 
         ckp: Stm32h7HallSensor::new(p_ckp),
+        cmp: Stm32h7HallSensor::new(p_cmp),
     }
 }
