@@ -2,9 +2,14 @@
 # Instruction set of Cortex-M4F (used in NUCLEO-STM32L476)
 target = "thumbv7em-none-eabihf"
 
+
+# --- CAMBIO IMPORTANTE ---
+# Mueve 'rustflags' de [build] a [target.EL_CHIP]
+[target.thumbv7em-none-eabihf]
 rustflags = [
-  # use the Tlink.x scrip from the cortex-m-rt crate
   "-C", "link-arg=-Tlink.x",
+  #"-C", "link-arg=-Tdefmt.x",
+  # Otras flags que tengas (ej. flip-link)
 ]
 
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
@@ -13,3 +18,7 @@ rustflags = [
 # runner = "arm-eabi-gdb -x openocd.gdb"
 runner = "gdb-multiarch -x openocd.gdb"
 # runner = "gdb -x openocd.gdb"
+
+[alias]
+# Comando corto para testear lógica en la PC
+test-pc = "test --target x86_64-unknown-linux-gnu"

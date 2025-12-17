@@ -9,6 +9,7 @@ use crate::sensors::Stm32h7HallSensor;
 // Para no pasar 10 argumentos, agrupamos todos los puertos crudos del micro aquí.
 pub struct RawPorts {
     pub gpioa: gpio::gpioa::Parts,
+    pub gpioc: gpio::gpioc::Parts,
     pub gpioe: gpio::gpioe::Parts,
     // Agrega más puertos (GPIOB, GPIOC) si es necesario
 }
@@ -16,41 +17,31 @@ pub struct RawPorts {
 // --- 2. LA MACRO MAESTRA ---
 macro_rules! define_hardware_map {
     (
-        outputs: {
-            $($OutAlias:ident : $out_port:ident . $out_pin:ident as $OutPinType:ident),* $(,)?
-        },
-        inputs: {
-            $($InAlias:ident : $in_port:ident . $in_pin:ident as $InPinType:ident),* $(,)?
+        outputs: { $($OutAlias:ident : $out_port:ident . $out_pin:ident as $OutPinType:ident),* $(,)? },
+        inputs: { $($InAlias:ident : $in_port:ident . $in_pin:ident as $InPinType:ident),* $(,)? },
+        // --- NUEVA SECCIÓN ---
+        analog: {
+            $($AnaAlias:ident : $ana_port:ident . $ana_pin:ident as $AnaPinType:ident),* $(,)?
         }
     ) => {
-        // 1. Generar Tipos de SALIDA
+        // ... (Generación de Outputs e Inputs igual que antes) ...
+        $( pub type $OutAlias = gpio::$OutPinType<gpio::Output<gpio::PushPull>>; )*
+        $( pub type $InAlias = gpio::$InPinType<gpio::Input>; )*
+
+        // 1. Generar Tipos ANALÓGICOS
         $(
-            pub type $OutAlias = gpio::$OutPinType<gpio::Output<gpio::PushPull>>;
+            pub type $AnaAlias = gpio::$AnaPinType<gpio::Analog>;
         )*
 
-        // 2. Generar Tipos de ENTRADA (CORREGIDO)
-        // En H7 HAL, 'Input' no lleva genéricos. El estado PullUp se configura
-        // pero el tipo sigue siendo solo 'Input'.
-        $(
-            pub type $InAlias = gpio::$InPinType<gpio::Input>;
-        )*
-
-        // 3. Función extractora
-        // Agregamos comas (,) al final de los grupos para forzar que sean tuplas
-        // incluso si solo hay 1 elemento.
-        fn extract_pins(ports: RawPorts) -> ( ($($OutAlias),*), ($($InAlias,)*) ) {
+        fn extract_pins(ports: RawPorts) -> ( ($($OutAlias,)*), ($($InAlias,)*), ($($AnaAlias,)*) ) {
             (
-                // Inicializar Salidas
+                ( $( ports.$out_port.$out_pin.into_push_pull_output(), )* ),
+                ( $( ports.$in_port.$in_pin.into_pull_up_input(), )* ),
+                // 2. Inicializar Analógicos
                 (
                     $(
-                        ports.$out_port.$out_pin.into_push_pull_output()
-                    ),*
-                ),
-                // Inicializar Entradas
-                (
-                    $(
-                        ports.$in_port.$in_pin.into_pull_up_input()
-                    ),* , // <--- Coma mágica para evitar warning de paréntesis
+                        ports.$ana_port.$ana_pin.into_analog(),
+                    )*
                 )
             )
         }
@@ -77,6 +68,22 @@ define_hardware_map!(
         // Alias      : Puerto . Pin   as Tipo
         CkpPin        : gpioa  . pa4   as PA4,
         CmpPin        : gpioa  . pa5   as PA5,
+    },
+    analog: {
+        // Definimos los sensores típicos de una ECU
+        // TPS: Throttle Position Sensor (PA0 es ADC1_INP16 en H750)
+        TpsPin  : gpioc . pc0 as PC0, 
+        
+        // MAP: Manifold Absolute Pressure (PA1 es ADC1_INP17)
+        MapPin  : gpioc . pc1 as PC1,
+
+        // IAT: Intake Air Temp (Digamos PC0 -> ADC1_INP10)
+        // Necesitas agregar gpioc a RawPorts si usas PC0
+        // Por simplicidad usaré PA6 (ADC1_INP3)
+        IatPin  : gpioc . pc6 as PC6,
+        
+        // CTS: Coolant Temp Sensor (PA7 -> ADC1_INP7)
+        CtsPin  : gpioc . pc7 as PC7,
     }
 );
 
@@ -110,6 +117,12 @@ pub struct ConfiguredHardware {
 
     pub ckp: CkpDriver,
     pub cmp: CmpDriver,
+
+    // Sensores Analógicos
+    pub tps: TpsPin,
+    pub map: MapPin,
+    pub iat: IatPin,
+    pub cts: CtsPin,
 }
 
 // --- 3. EL MAPEO (LA "CONEXIÓN") ---
@@ -126,7 +139,8 @@ pub fn map_hardware(ports: RawPorts) -> ConfiguredHardware {
         p_ign3,
         p_ign4),
         (p_ckp,
-        p_cmp,)
+        p_cmp,),
+        (p_tps, p_map, p_iat, p_cts)
     ) = extract_pins(ports);
 
     // C) Creamos los drivers
@@ -143,5 +157,10 @@ pub fn map_hardware(ports: RawPorts) -> ConfiguredHardware {
 
         ckp: Stm32h7HallSensor::new(p_ckp),
         cmp: Stm32h7HallSensor::new(p_cmp),
+
+        tps: p_tps,
+        map: p_map,
+        iat: p_iat,
+        cts: p_cts,
     }
 }

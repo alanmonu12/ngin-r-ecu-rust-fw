@@ -18,6 +18,10 @@ use pinout::{map_hardware, RawPorts};
 use hal::delay::Delay; // Importar Delay
 //use hal::gpio::ExtiPin;
 
+use hal::adc::{Adc, Enabled, Resolution};
+use hal::rcc::rec::AdcClkSel;
+//use hal::traits::Adc as AdcTrait;
+
 // --- LA ESTRUCTURA DEL HARDWARE ---
 // Esta struct representa tu ECU física completa.
 pub struct Board {
@@ -36,6 +40,15 @@ pub struct Board {
     pub cmp: pinout::CmpDriver, // <--- Público para el firmware
 
     pub delay: Delay, // <--- La board incluye su propio reloj de espera
+
+    pub tps: pinout::TpsPin,
+    pub map: pinout::MapPin,
+    pub iat: pinout::IatPin,
+    pub cts: pinout::CtsPin,
+
+    // EL COMPONENTE CLAVE: El ADC (Convertidor)
+    // Usaremos ADC1 para todos estos sensores
+    pub adc1: Adc<hal::device::ADC1, Enabled>,
 }
 
 impl Board {
@@ -49,18 +62,21 @@ impl Board {
         let pwr = dp.PWR.constrain();
         let pwrcfg = pwr.freeze();
         let rcc = dp.RCC.constrain();
-        let ccdr = rcc.sys_ck(100.MHz()).freeze(pwrcfg, &dp.SYSCFG);
+        let mut ccdr = rcc.sys_ck(100.MHz()).freeze(pwrcfg, &dp.SYSCFG);
 
+        ccdr.peripheral.kernel_adc_clk_mux(AdcClkSel::Per);
         //let mut syscfg = dp.SYSCFG;
         //let mut exti = dp.EXTI;
 
         // 3. Dividir los GPIOs (Split)
         let gpioe = dp.GPIOE.split(ccdr.peripheral.GPIOE);
         let gpioa = dp.GPIOA.split(ccdr.peripheral.GPIOA);
+        let gpioc = dp.GPIOC.split(ccdr.peripheral.GPIOC);
 
         // 4. Empaquetamos los recursos crudos
         let raw_ports = RawPorts {
             gpioa,
+            gpioc,
             gpioe,
         };
 
@@ -75,7 +91,17 @@ impl Board {
         //hardware.ckp.trigger_on_edge(&mut exti, Edge::Rising);
         //hardware.ckp.enable_interrupt(&mut exti);
 
-        let sys_delay = Delay::new(cp.SYST, ccdr.clocks);
+        let mut sys_delay = Delay::new(cp.SYST, ccdr.clocks);
+
+        let mut adc1 = Adc::adc1(
+            dp.ADC1, 
+            4.MHz(),
+            &mut sys_delay, 
+            ccdr.peripheral.ADC12, 
+            &ccdr.clocks
+        ).enable();
+
+        adc1.set_resolution(Resolution::SixteenBit);
 
         // 6. Retornar la estructura empaquetada
         Board {
@@ -93,6 +119,13 @@ impl Board {
             cmp: hardware.cmp,
             
             delay: sys_delay, // <--- Lo guardamos
+
+            // Sensores y ADC
+            tps: hardware.tps,
+            map: hardware.map,
+            iat: hardware.iat,
+            cts: hardware.cts,
+            adc1: adc1,
         }
     }
 }
