@@ -6,3 +6,6 @@ extern crate std;
 
 pub mod tables; // <--- Aquí vivirá la matemática
 pub mod fuel_model;
+pub mod decoder;
+
+pub mod decoders;
