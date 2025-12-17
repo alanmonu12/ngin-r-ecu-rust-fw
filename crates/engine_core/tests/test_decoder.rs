@@ -149,3 +149,69 @@ fn test_hard_acceleration_through_gap() {
     // 2.8 > 1.5 -> TRUE. ¡Debe pasar!
     assert_eq!(evt, DecoderEvent::SyncGained, "Debe sincronizar aun acelerando");
 }
+
+#[test]
+fn test_rpm_calculation_accuracy() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    
+    // Configuración: 1000us por diente en rueda 60-2 equivale EXACTAMENTE a 1000 RPM.
+    let tooth_time = 1000;
+    let mut current_time = 10_000; // Empezamos lejos del 0
+
+    // 1. Primer pulso (Inicialización)
+    decoder.on_edge(current_time);
+
+    // 2. Segundo pulso (Establece el primer delta)
+    current_time += tooth_time;
+    decoder.on_edge(current_time);
+
+    // 3. Verificamos la RPM Instantánea
+    // Debería ser 1000 exactos (o 999/1001 por redondeo entero)
+    let rpm = decoder.get_instant_rpm();
+    assert_eq!(rpm, 1000, "1000us/diente en 60t debe ser 1000 RPM");
+}
+
+#[test]
+fn test_rpm_filtering_response() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    
+    // Paso 1: Estabilizar a 1000 RPM (1000us por diente)
+    let steady_time = 1000;
+    let mut current_time = 1_000_000;
+
+    // Mandamos 50 dientes estables para que el filtro "se llene" y converja a 1000
+    // (Como el filtro es exponencial, tarda unos cuantos ciclos en llegar al valor objetivo)
+    for _ in 0..1000 {
+        current_time += steady_time;
+        decoder.on_edge(current_time);
+    }
+    
+    // Verificamos que ya estamos estables
+    let rpm = decoder.get_rpm();
+    // verificamos con un 10% de tolerancia para el filtro
+    assert!(rpm >= 990 && rpm <= 1010, "El filtro se quedó lejos: {}", rpm);
+
+    // Paso 2: SIMULAR UN PICO (Ruido o Explosión de cilindro)
+    // El siguiente diente llega en la mitad del tiempo (500us -> 2000 RPM instantáneo)
+    current_time += 500; 
+    decoder.on_edge(current_time);
+
+    // Verificaciones:
+    
+    // A) La instantánea DEBE detectar el cambio brusco inmediatamente
+    let instant = decoder.get_instant_rpm();
+    assert_eq!(instant, 2000, "Instantánea debe reaccionar inmediatamente al pico");
+
+    // B) La filtrada DEBE amortiguar el golpe
+    let filtered = decoder.get_rpm();
+    
+    // Cálculo manual con Alpha = 85 (el que pusimos en el código):
+    // Nuevo = (Old_1000 * 0.85) + (New_2000 * 0.15)
+    // Nuevo = 850 + 300 = 1150 RPM
+    // Comprobamos que esté en ese rango (amortiguado)
+    assert!(filtered < 1500, "El filtro no está suavizando lo suficiente! Valor: {}", filtered);
+    assert!(filtered > 1000, "El filtro no está subiendo nada! Valor: {}", filtered);
+    
+    // Opcional: Verificar valor exacto si no cambiamos el alpha
+    // assert_eq!(filtered, 1150); 
+}
