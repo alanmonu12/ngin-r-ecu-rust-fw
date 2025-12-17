@@ -13,11 +13,17 @@ fn test_60_minus_2_sync() {
     
     let tooth_time = 1000;
     let mut current_time = 0;
+    let mut evt = DecoderEvent::None;
 
+    // mandamos un diente que se ignora para detectar el inicio de arranque
+    current_time += tooth_time;
+    evt = decoder.on_edge(current_time);
+    assert_eq!(evt, DecoderEvent::None);
+    
     // A) Mandamos 5 dientes normales (Aún no hay sync)
     for _ in 0..5 {
         current_time += tooth_time;
-        let evt = decoder.on_edge(current_time);
+        evt = decoder.on_edge(current_time);
         assert_eq!(evt, DecoderEvent::ToothProcessed);
         assert_eq!(decoder.is_synced(), false, "No debería tener sync todavía");
     }
@@ -42,26 +48,104 @@ fn test_60_minus_2_sync() {
 fn test_timer_overflow() {
     let mut decoder = MissingToothDecoder::new(60, 2);
     
-    // Situación: Estamos al borde del final de u32
-    // u32::MAX es 4,294,967,295
-    let mut time = u32::MAX; 
-    let step = 1000; // 1ms por diente
+    // Arrancamos muy cerca del final del reloj (u32::MAX)
+    let mut time = u32::MAX - 2500; 
+    let step = 1000; 
 
-    assert_eq!(time, u32::MAX);
-    // Mandamos un diente antes del desbordamiento
-    let mut event = decoder.on_edge(time); 
-
-    assert_eq!(event, DecoderEvent::ToothProcessed);
+    // 1. PRIMER PULSO (Ignorado por lógica de arranque)
+    // Sirve para setear last_timestamp = u32::MAX - 2500
+    decoder.on_edge(time); 
     
-    // Mandamos el siguiente diente (Esto causará el wrap around a números pequeños)
-    // time pasará de 4,294,967,xxx a aprox 500
+    // 2. SEGUNDO PULSO (Establece el primer Delta válido)
+    // time avanza a u32::MAX - 1500
+    // Delta calculado = 1000. last_delta = 1000.
+    time = time.wrapping_add(step);
+    let event_init = decoder.on_edge(time);
+    assert_eq!(event_init, DecoderEvent::ToothProcessed);
+
+    // 3. TERCER PULSO (EL TEST REAL DE OVERFLOW)
+    // time avanza y DA LA VUELTA (Wrap around)
+    // time pasa de ser gigante a ser pequeño (aprox 500)
     time = time.wrapping_add(step); 
-    assert_eq!(time, 999);
     
-    // Si tu código usa wrapping_sub, esto no debería paniquear ni dar un delta gigante
-    event = decoder.on_edge(time);
+    // Aquí es donde wrapping_sub salva el día.
+    // Si usaras resta normal: 500 - 4,294,965,795 = CRASH (Panic)
+    // Con wrapping_sub: Resultado = 1000.
+    let event_overflow = decoder.on_edge(time);
 
-    // El decoder debería aceptarlo como un diente normal (ToothProcessed)
-    // Si fallara la matemática, detectaría un "Gap" falso o crashearía.
-    assert_eq!(event, DecoderEvent::ToothProcessed);
+    // Si todo salió bien, el decoder vio un diente de 1000us normal
+    assert_eq!(event_overflow, DecoderEvent::ToothProcessed);
+}
+
+#[test]
+fn test_wheel_36_minus_1_config() {
+    // 1. Configuramos una rueda distinta: 36 dientes, falta 1
+    // En esta rueda, el hueco dura 2 tiempos (el espacio del faltante + el actual)
+    let mut decoder = MissingToothDecoder::new(36, 1);
+    
+    // Simulamos 1000 RPM (aprox 1666 us por diente)
+    let tooth_time = 1666; 
+    let mut current_time = 10_000_000; // Empezamos en un tiempo arbitrario alto
+
+    // A) Primer pulso (Reset/Start)
+    decoder.on_edge(current_time);
+
+    // B) Unos cuantos dientes normales para estabilizar
+    for _ in 0..10 {
+        current_time += tooth_time;
+        decoder.on_edge(current_time);
+        assert!(!decoder.is_synced());
+    }
+
+    // C) EL HUECO (GAP) de una 36-1
+    // La duración es x2 (1 faltante + 1 actual)
+    current_time += tooth_time * 2; 
+    
+    // El decoder compara: NuevoDelta (3332) > AnteriorDelta (1666) * 1.5
+    // 3332 > 2499 -> TRUE
+    let evt = decoder.on_edge(current_time);
+
+    assert_eq!(evt, DecoderEvent::SyncGained, "Debe detectar hueco en 36-1");
+    assert_eq!(decoder.get_angle(), 0.0);
+}
+
+#[test]
+fn test_hard_acceleration_through_gap() {
+    // Rueda 60-2
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    
+    // Arrancamos lento (2000 us por diente)
+    let mut tooth_duration = 2000; 
+    let mut current_time = 1000;
+
+    // Primer pulso
+    decoder.on_edge(current_time);
+
+    // Bucle de aceleración: Cada diente es 10us más rápido que el anterior
+    // Simulamos llegar hasta justo antes del hueco
+    for _ in 0..55 {
+        current_time += tooth_duration;
+        decoder.on_edge(current_time);
+        
+        // ACELERACIÓN: El siguiente diente será más rápido
+        tooth_duration -= 20; 
+    }
+
+    // Guardamos la duración del "último diente normal" para referencia del test
+    let last_normal_duration = tooth_duration; // Digamos que bajó a ~900us
+
+    // AHORA VIENE EL HUECO
+    // El motor sigue acelerando DURANTE el hueco.
+    // En teoría 60-2 es x3. 
+    // Pero como aceleramos, el tiempo real será un poco menos de 3 veces el ANTERIOR.
+    // Vamos a ser agresivos: Digamos que el hueco dura 2.8 veces el anterior debido a la aceleración
+    let gap_duration = (last_normal_duration as f32 * 2.8) as u32;
+    
+    current_time += gap_duration;
+    let evt = decoder.on_edge(current_time);
+
+    // Verificación:
+    // Tu lógica es: Delta (2.8x) > Last (1.0x) * 1.5
+    // 2.8 > 1.5 -> TRUE. ¡Debe pasar!
+    assert_eq!(evt, DecoderEvent::SyncGained, "Debe sincronizar aun acelerando");
 }

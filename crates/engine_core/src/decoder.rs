@@ -22,4 +22,6 @@ pub trait TriggerDecoder {
     /// estado de la sincronizacion
     fn is_synced(&self) -> bool;
 
+    fn get_instant_rpm(&self) -> u16;
+
 }

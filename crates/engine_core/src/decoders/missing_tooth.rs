@@ -11,9 +11,15 @@ pub struct MissingToothDecoder {
     synced: bool,
     last_timestamp: u32,
     last_delta: u32,     // Tiempo que duró el diente anterior
-    rpm: u16,
-
+    rpm_instant: u16,  // Cruda (para lógica interna)
+    rpm_filtered: u16, // Suavizada (para tablas)
+    first_edge: bool,
     noise_filter_ratio: f32,
+    max_tooth_time_us: u32,
+
+    // Factor de suavizado (0 a 100).
+    // 80 significa: El nuevo valor pesa 20%, el historial pesa 80%.
+    filter_alpha: u32,
 }
 
 impl MissingToothDecoder {
@@ -23,16 +29,49 @@ impl MissingToothDecoder {
             teeth_missing: missing,
             current_tooth_idx: 0,
             synced: false,
+            first_edge: true,
             last_timestamp: 0,
             last_delta: 0,
-            rpm: 0,
+            rpm_instant: 0,  // Cruda (para lógica interna)
+            rpm_filtered: 0, // Suavizada (para tablas)
             noise_filter_ratio: 0.25,
+            max_tooth_time_us: 500_000,
+            filter_alpha: 85,
         }
+    }
+
+    // Método auxiliar para limpiar estado (público por si el firmware quiere forzarlo)
+    pub fn reset(&mut self) {
+        self.first_edge = true;
+        self.synced = false;
+        self.current_tooth_idx = 0;
+        self.last_delta = 0;
+        self.rpm_filtered = 0;
+        self.rpm_instant = 0;
     }
 }
 
 impl TriggerDecoder for MissingToothDecoder {
     fn on_edge(&mut self, timestamp_us: u32) -> DecoderEvent {
+
+        // Chequeo de Timeout / Stall
+        // Calculamos cuánto tiempo pasó REALMENTE desde la última vez que vimos un diente
+        let time_since_last = timestamp_us.wrapping_sub(self.last_timestamp);
+
+        // Si ha pasado más de medio segundo, asumimos que el motor se paró
+        // y este es un nuevo arranque.
+        if !self.first_edge && time_since_last > self.max_tooth_time_us {
+            self.reset();
+            // Y ahora nos comportamos como si fuera el first_edge
+        }
+
+        //  Lógica de Primer Diente (o después de un Reset)
+        if self.first_edge {
+            self.first_edge = false;
+            self.last_timestamp = timestamp_us;
+            return DecoderEvent::None;
+        }
+
         // 1. Calcular cuánto tiempo pasó desde el último diente (dt)
         // Manejamos el desbordamiento del reloj (u32 overflow)
         let delta = timestamp_us.wrapping_sub(self.last_timestamp);
@@ -83,10 +122,22 @@ impl TriggerDecoder for MissingToothDecoder {
         // Por ahora, calculamos RPM instantáneas basadas en el último diente
         // Ojo: En el hueco el RPM parecerá caer, hay que filtrar eso en el futuro.
         if delta > 0 {
-            // Formula aproximada diente a diente
-             let degrees_per_tooth = 360.0 / (self.teeth_total as f32);
-             let us_per_degree = delta as f32 / degrees_per_tooth;
-             // ... lógica de conversión a RPM ...
+            // 1. Calcular Instantánea
+            let factor: u32 = 60_000_000 / (self.teeth_total as u32);
+            let raw_rpm = (factor / delta) as u16;
+            self.rpm_instant = raw_rpm;
+
+            // 2. Calcular Filtrada (EMA)
+            // Usamos math entera para velocidad: (Old * alpha + New * (100-alpha)) / 100
+            let alpha = self.filter_alpha;
+            let inv_alpha = 100 - alpha;
+            
+            let smooth = (
+                (self.rpm_filtered as u32 * alpha) + 
+                (raw_rpm as u32 * inv_alpha)
+            ) / 100;
+
+            self.rpm_filtered = smooth as u16;
             
         }
 
@@ -101,7 +152,11 @@ impl TriggerDecoder for MissingToothDecoder {
     }
 
     fn get_rpm(&self) -> u16 {
-        self.rpm
+        self.rpm_filtered
+    }
+
+    fn get_instant_rpm(&self) -> u16 {
+        self.rpm_instant
     }
 
     fn is_synced(&self) -> bool {
