@@ -12,6 +12,8 @@ pub struct MissingToothDecoder {
     last_timestamp: u32,
     last_delta: u32,     // Tiempo que duró el diente anterior
     rpm: u16,
+
+    noise_filter_ratio: f32,
 }
 
 impl MissingToothDecoder {
@@ -24,6 +26,7 @@ impl MissingToothDecoder {
             last_timestamp: 0,
             last_delta: 0,
             rpm: 0,
+            noise_filter_ratio: 0.25,
         }
     }
 }
@@ -33,6 +36,16 @@ impl TriggerDecoder for MissingToothDecoder {
         // 1. Calcular cuánto tiempo pasó desde el último diente (dt)
         // Manejamos el desbordamiento del reloj (u32 overflow)
         let delta = timestamp_us.wrapping_sub(self.last_timestamp);
+
+        if self.last_delta > 0 {
+            let min_valid_delta = (self.last_delta as f32 * self.noise_filter_ratio) as u32;
+            if delta < min_valid_delta {
+                // Es ruido (Spark noise), lo ignoramos completamente.
+                // NO actualizamos last_timestamp, hacemos de cuenta que no pasó.
+                return DecoderEvent::None; 
+            }
+        }
+
         self.last_timestamp = timestamp_us;
 
         // Filtro básico de ruido: si el pulso es absurdamente rápido, ignorar
