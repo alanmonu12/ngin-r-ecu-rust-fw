@@ -4,6 +4,7 @@ pub enum DecoderEvent {
     ToothProcessed,    // Procesamos un diente normal
     SyncGained,        // ¡Acabamos de encontrar la posición! (Ej. Hueco detectado)
     SyncLost,          // Algo salió mal (ruido), perdimos la cuenta
+    Noise,
 }
 
 /// Las caracterisitcas que cualuiqer decoder que se implemente debe cumplir

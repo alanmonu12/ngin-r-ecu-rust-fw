@@ -42,7 +42,7 @@ impl TriggerDecoder for MissingToothDecoder {
             if delta < min_valid_delta {
                 // Es ruido (Spark noise), lo ignoramos completamente.
                 // NO actualizamos last_timestamp, hacemos de cuenta que no pasó.
-                return DecoderEvent::None; 
+                return DecoderEvent::Noise; 
             }
         }
 
@@ -87,7 +87,7 @@ impl TriggerDecoder for MissingToothDecoder {
              let degrees_per_tooth = 360.0 / (self.teeth_total as f32);
              let us_per_degree = delta as f32 / degrees_per_tooth;
              // ... lógica de conversión a RPM ...
-             // Para simplificar este ejemplo, no llenaré la matemática completa de RPM aquí
+            
         }
 
         self.last_delta = delta;

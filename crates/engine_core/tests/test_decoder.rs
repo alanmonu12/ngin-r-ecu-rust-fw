@@ -37,3 +37,31 @@ fn test_60_minus_2_sync() {
     let evt = decoder.on_edge(current_time);
     assert_eq!(decoder.get_angle(), 6.0, "Diente 1 debe ser 6 grados (360/60)");
 }
+
+#[test]
+fn test_timer_overflow() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    
+    // Situación: Estamos al borde del final de u32
+    // u32::MAX es 4,294,967,295
+    let mut time = u32::MAX; 
+    let step = 1000; // 1ms por diente
+
+    assert_eq!(time, u32::MAX);
+    // Mandamos un diente antes del desbordamiento
+    let mut event = decoder.on_edge(time); 
+
+    assert_eq!(event, DecoderEvent::ToothProcessed);
+    
+    // Mandamos el siguiente diente (Esto causará el wrap around a números pequeños)
+    // time pasará de 4,294,967,xxx a aprox 500
+    time = time.wrapping_add(step); 
+    assert_eq!(time, 999);
+    
+    // Si tu código usa wrapping_sub, esto no debería paniquear ni dar un delta gigante
+    event = decoder.on_edge(time);
+
+    // El decoder debería aceptarlo como un diente normal (ToothProcessed)
+    // Si fallara la matemática, detectaría un "Gap" falso o crashearía.
+    assert_eq!(event, DecoderEvent::ToothProcessed);
+}
