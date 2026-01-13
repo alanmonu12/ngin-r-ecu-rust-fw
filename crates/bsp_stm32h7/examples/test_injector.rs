@@ -17,17 +17,17 @@ fn main() -> ! {
     // 2. Bucle de Prueba
     loop {
         // --- CILINDRO 1 ---
-        let _ = board.inyector_1.open();
+        let _ = board.inyector_1.close();
         
         // Usamos el delay que vive dentro de la board
-        board.delay.delay_ms(4u32); 
+        board.delay.delay_ms(100u32); 
         
-        let _ = board.inyector_1.close();
+        let _ = board.inyector_1.open();
 
         // --- CILINDRO 2 ---
         let _ = board.inyector_2.open();
         
-        board.delay.delay_ms(10u32);
+        //board.delay.delay_ms(500u32);
         
         let _ = board.inyector_2.close();
 

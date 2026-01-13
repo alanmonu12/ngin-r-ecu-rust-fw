@@ -36,6 +36,14 @@ where
         // 3. Desenmascarar (Habilitar) la interrupción
         self.pin.enable_interrupt(exti);
     }
+
+    /// Funcion para dehabilitar interrupcion del sensor
+    /// Funciona como puente para el hardware
+    pub fn disable_interrupt(&mut self, exti: &mut EXTI) {
+        // 1. Rutear el GPIO hacia el controlador de interrupciones
+        self.pin.disable_interrupt(exti);
+    }
+    
 }
 
 impl<P> RotationSensor for Stm32h7HallSensor<P>
