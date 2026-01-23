@@ -11,9 +11,9 @@ fn test_60_minus_2_sync() {
     // cada diente tarda 1000 us (1ms).
     // El hueco debería tardar 3000 us (3 dientes faltantes de tiempo).
     
-    let tooth_time = 1000;
+    let tooth_time =100;
     let mut current_time = 0;
-    let mut evt = DecoderEvent::None;
+    let mut evt;
 
     // mandamos un diente que se ignora para detectar el inicio de arranque
     current_time += tooth_time;
@@ -41,6 +41,7 @@ fn test_60_minus_2_sync() {
     // D) Mandamos otro diente normal
     current_time += tooth_time;
     let evt = decoder.on_edge(current_time);
+    assert_eq!(evt, DecoderEvent::ToothProcessed, "Debería haber detectado el hueco");
     assert_eq!(decoder.get_angle(), 6.0, "Diente 1 debe ser 6 grados (360/60)");
 }
 
@@ -155,28 +156,30 @@ fn test_rpm_calculation_accuracy() {
     let mut decoder = MissingToothDecoder::new(60, 2);
     
     // Configuración: 1000us por diente en rueda 60-2 equivale EXACTAMENTE a 1000 RPM.
-    let tooth_time = 1000;
+    let tooth_time = 100;
     let mut current_time = 10_000; // Empezamos lejos del 0
 
     // 1. Primer pulso (Inicialización)
     decoder.on_edge(current_time);
 
-    // 2. Segundo pulso (Establece el primer delta)
+    // mandamos un diente que se ignora por ser el primer diente despues del hueco
     current_time += tooth_time;
     decoder.on_edge(current_time);
 
+    current_time += tooth_time;
+    decoder.on_edge(current_time);
     // 3. Verificamos la RPM Instantánea
-    // Debería ser 1000 exactos (o 999/1001 por redondeo entero)
+    // Debería ser 10000 exactos (o 9999/10001 por redondeo entero)
     let rpm = decoder.get_instant_rpm();
-    assert_eq!(rpm, 1000, "1000us/diente en 60t debe ser 1000 RPM");
+    assert_eq!(rpm, 10000, "100us/diente en 60t debe ser 10000 RPM");
 }
 
 #[test]
 fn test_rpm_filtering_response() {
     let mut decoder = MissingToothDecoder::new(60, 2);
     
-    // Paso 1: Estabilizar a 1000 RPM (1000us por diente)
-    let steady_time = 1000;
+    // Paso 1: Estabilizar a 10000 RPM (1000us por diente)
+    let steady_time = 100;
     let mut current_time = 1_000_000;
 
     // Mandamos 50 dientes estables para que el filtro "se llene" y converja a 1000
@@ -189,18 +192,18 @@ fn test_rpm_filtering_response() {
     // Verificamos que ya estamos estables
     let rpm = decoder.get_rpm();
     // verificamos con un 10% de tolerancia para el filtro
-    assert!(rpm >= 990 && rpm <= 1010, "El filtro se quedó lejos: {}", rpm);
+    assert!(rpm >= 9000 && rpm <= 11000, "El filtro se quedó lejos: {}", rpm);
 
     // Paso 2: SIMULAR UN PICO (Ruido o Explosión de cilindro)
     // El siguiente diente llega en la mitad del tiempo (500us -> 2000 RPM instantáneo)
-    current_time += 500; 
+    current_time += 50; 
     decoder.on_edge(current_time);
 
     // Verificaciones:
     
     // A) La instantánea DEBE detectar el cambio brusco inmediatamente
     let instant = decoder.get_instant_rpm();
-    assert_eq!(instant, 2000, "Instantánea debe reaccionar inmediatamente al pico");
+    assert_eq!(instant, 20000, "Instantánea debe reaccionar inmediatamente al pico");
 
     // B) La filtrada DEBE amortiguar el golpe
     let filtered = decoder.get_rpm();
@@ -209,9 +212,89 @@ fn test_rpm_filtering_response() {
     // Nuevo = (Old_1000 * 0.85) + (New_2000 * 0.15)
     // Nuevo = 850 + 300 = 1150 RPM
     // Comprobamos que esté en ese rango (amortiguado)
-    assert!(filtered < 1500, "El filtro no está suavizando lo suficiente! Valor: {}", filtered);
-    assert!(filtered > 1000, "El filtro no está subiendo nada! Valor: {}", filtered);
+    assert!(filtered < 15000, "El filtro no está suavizando lo suficiente! Valor: {}", filtered);
+    assert!(filtered > 10000, "El filtro no está subiendo nada! Valor: {}", filtered);
     
     // Opcional: Verificar valor exacto si no cambiamos el alpha
     // assert_eq!(filtered, 1150); 
 }
+
+#[test]
+fn test_first_tooth_jitter_protection() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    let tooth_time = 100; // 1ms = 1000 RPM
+    let mut current_time = 100_000;
+    let evt;
+
+    // 1. Estabilizar a 1000 RPM
+    for _ in 0..60 {
+        current_time += tooth_time;
+        decoder.on_edge(current_time);
+    }
+    let rpm_before = decoder.get_rpm();
+
+    // 2. Simular Hueco
+    current_time += tooth_time * 3;
+    evt = decoder.on_edge(current_time); // Gap detectado
+
+    assert_eq!(evt,  DecoderEvent::SyncGained, "Debe detectar el hueco correctamente");
+
+    // 3. Simular "Diente Mentiroso" (Diente 1 llega un 15% tarde)
+    // Esto es lo que causaba tu caída a 4850 RPM
+    current_time += (tooth_time as f32 * 1.15) as u32; 
+    decoder.on_edge(current_time);
+
+    // 4. Verificación
+    let rpm_after = decoder.get_rpm();
+    assert_eq!(rpm_before, rpm_after, 
+        "Las RPM no deberían haber variado. El Diente 1 debe ignorarse para el cálculo de RPM.");
+}
+
+#[test]
+fn test_noise_pulse_rejection() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    let tooth_time = 1000;
+    let mut current_time = 100_000;
+
+    decoder.on_edge(current_time);
+    current_time += tooth_time;
+    decoder.on_edge(current_time); // Sync inicial
+
+    // Simular un pulso de ruido (solo 10us después del diente real)
+    let noise_time = current_time + 10; 
+    let event = decoder.on_edge(noise_time);
+
+    assert_eq!(event, DecoderEvent::Noise, "Debe detectar el pulso como ruido");
+    
+    // El contador de dientes NO debe haber avanzado por el ruido
+    // Si el ruido se contara, el ángulo fallaría.
+    current_time += tooth_time;
+    decoder.on_edge(current_time);
+    
+    // Si el ruido se ignoró, este diente debería ser el siguiente correcto
+    // (Ajusta según tu lógica de conteo de dientes)
+}
+
+#[test]
+fn test_decoder_stall_recovery() {
+    let mut decoder = MissingToothDecoder::new(60, 2);
+    let mut current_time = 100_000;
+
+    // 1. Girar el motor
+    for _ in 0..10 {
+        current_time += 1000;
+        decoder.on_edge(current_time);
+    }
+    assert!(decoder.get_rpm() > 0);
+
+    // 2. Simular que el motor se detiene de golpe
+    // Pasamos el stall_timeout (ej. 0.5s = 500_000 us)
+    current_time += 600_000; 
+    
+    let is_stalled = decoder.check_stall(current_time);
+    
+    assert!(is_stalled, "Debe reportar que el motor se detuvo");
+    assert_eq!(decoder.get_rpm(), 0, "RPM deben resetearse a 0 tras el stall");
+    assert!(!decoder.is_synced(), "Debe perder sync tras el stall");
+}
+

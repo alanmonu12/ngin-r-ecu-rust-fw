@@ -59,4 +59,10 @@ where
     fn clear_sensor_flag(&mut self) {
         self.pin.clear_interrupt_pending_bit();
     }
+
+    fn acknowledge_interrupt(&mut self) -> Result<(), Self::Error> {
+        // En este caso, limpiar la bandera es suficiente
+        self.pin.clear_interrupt_pending_bit();
+        Ok(())
+    }
 }

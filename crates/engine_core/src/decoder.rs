@@ -24,4 +24,9 @@ pub trait TriggerDecoder {
 
     fn get_instant_rpm(&self) -> u16;
 
+    /// Se llama periódicamente (ej. en el main loop) para ver si
+    /// el motor sigue vivo.
+    /// Retorna `true` si se detectó un STALL (el motor se acaba de parar).
+    fn check_stall(&mut self, current_time_us: u32) -> bool;
+
 }

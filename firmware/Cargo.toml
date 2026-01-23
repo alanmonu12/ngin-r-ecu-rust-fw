@@ -11,6 +11,7 @@ memory-x = "memory.x"
 ecu_traits = { path = "../crates/ecu_traits" }
 engine_core = { path = "../crates/engine_core" }
 bsp_stm32h7 = { path = "../crates/bsp_stm32h7", package = "bsp_stm32h7" }
+telemetry = { path = "../crates/telemetry", package = "telemetry" }
 
 cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.5"

@@ -20,6 +20,9 @@ use hal::delay::Delay; // Importar Delay
 
 use hal::adc::{Adc, Enabled, Resolution};
 use hal::rcc::rec::AdcClkSel;
+
+use cortex_m::Peripherals as CorePeripherals;
+use hal::pac::Peripherals as DevicePeripherals;
 //use hal::traits::Adc as AdcTrait;
 
 // --- LA ESTRUCTURA DEL HARDWARE ---
@@ -53,16 +56,23 @@ pub struct Board {
 
 impl Board {
     /// Función que toma los periféricos "crudos" del micro y devuelve la Board configurada
-    pub fn init() -> Self {
+    pub fn init(dp: DevicePeripherals, cp: CorePeripherals) -> Self {
         // 1. Tomar periféricos crudos
-        let dp = hal::pac::Peripherals::take().unwrap();
-        let cp = cortex_m::Peripherals::take().unwrap(); // Necesario para el SYST (Delay)
-        
+        //let dp = hal::pac::Peripherals::take().unwrap();
+        //let cp = cortex_m::Peripherals::take().unwrap(); // Necesario para el SYST (Delay)
+
         // 2. Configurar Relojes (RCC) - Centralizado aquí
+        let mut syscfg = dp.SYSCFG;
+        let mut exti = dp.EXTI;
         let pwr = dp.PWR.constrain();
-        let pwrcfg = pwr.freeze();
+        let pwrcfg = pwr.vos0(&syscfg).freeze();
         let rcc = dp.RCC.constrain();
-        let mut ccdr = rcc.sys_ck(100.MHz()).freeze(pwrcfg, &dp.SYSCFG);
+
+        let rcc = rcc.use_hse(25.MHz());
+        let mut ccdr = rcc
+            .use_hse(25.MHz()) // Cristal externo de 25MHz
+            .sys_ck(400.MHz()) // Petición de 480MHz
+            .freeze(pwrcfg, &syscfg);
 
         ccdr.peripheral.kernel_adc_clk_mux(AdcClkSel::Per);
         //let mut syscfg = dp.SYSCFG;
@@ -81,13 +91,13 @@ impl Board {
         };
 
         // 5. LLAMAMOS AL MAPEO (Aquí ocurre la abstracción)
-        let hardware = map_hardware(raw_ports);
+        let mut hardware = map_hardware(raw_ports);
 
         // Configuración adicional de interrupción para CKP
         // Queremos que interrumpa en el flanco de SUBIDA (Rising Edge)
         // Esto accede al registro EXTI hardware real.
         // --- CONFIGURACIÓN DE INTERRUPCIONES ---
-        //hardware.ckp.enable_interrupt(&mut syscfg, &mut exti);
+        hardware.ckp.enable_interrupt(&mut syscfg, &mut exti);
         //hardware.ckp.trigger_on_edge(&mut exti, Edge::Rising);
         //hardware.ckp.enable_interrupt(&mut exti);
 

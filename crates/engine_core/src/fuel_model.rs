@@ -1,4 +1,4 @@
-use libm::{powf, expf}; // Importamos funciones matemáticas si fueran necesarias
+// use libm::{powf, expf}; // Importamos funciones matemáticas si fueran necesarias
 
 // Constante de los gases ideales para el aire (J / kg*K)
 const R_SPECIFIC_AIR: f32 = 287.05;

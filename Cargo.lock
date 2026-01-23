@@ -33,7 +33,7 @@ dependencies = [
  "embedded-hal 0.2.7",
  "nb 1.1.0",
  "panic-halt",
- "rtt-target",
+ "rtt-target 0.6.2",
  "stm32h7xx-hal",
 ]
 
@@ -159,8 +159,9 @@ dependencies = [
  "panic-halt",
  "rtic",
  "rtic-monotonics",
- "rtt-target",
+ "rtt-target 0.6.2",
  "stm32h7xx-hal",
+ "telemetry",
 ]
 
 [[package]]
@@ -381,6 +382,16 @@ dependencies = [
 
 [[package]]
 name = "rtt-target"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10b34c9e6832388e45f3c01f1bb60a016384a0a4ad80cdd7d34913bed25037f0"
+dependencies = [
+ "critical-section",
+ "ufmt-write",
+]
+
+[[package]]
+name = "rtt-target"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7afed1f4302eeba88c601636cf2c554c45e1cbb464bab44c6012bab0e71473c"
@@ -460,6 +471,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "telemetry"
+version = "0.1.0"
+dependencies = [
+ "cortex-m",
+ "rtt-target 0.5.0",
 ]
 
 [[package]]

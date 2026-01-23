@@ -3,6 +3,14 @@ members = [
     "crates/ecu_traits",
     "crates/engine_core",
     "crates/bsp_stm32h7",
+    "crates/telemetry",
     "firmware"
 ]
 resolver = "2"
+
+# Configuración para el perfil de desarrollo (cargo build / cargo run)
+[profile.dev]
+opt-level = 1      # 0 es el default (lento). 1 optimiza lo básico.
+debug = true       # Mantiene los símbolos para depurar.
+lto = false        # Link Time Optimization (apagado para compilar rápido).
+incremental = true # Compilación incremental para ir rápido.

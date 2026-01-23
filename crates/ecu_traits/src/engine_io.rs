@@ -34,4 +34,7 @@ pub trait RotationSensor {
 
     /// Limpiar bandera de la interrupcion pendiente de HW
     fn clear_sensor_flag(&mut self);
+
+    // Funcion para reconocer la interrupcion (si aplica)
+    fn acknowledge_interrupt(&mut self) -> Result<(), Self::Error>;
 }
